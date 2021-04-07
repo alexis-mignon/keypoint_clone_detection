@@ -10,3 +10,11 @@ Can get help using:
 ```bash
 $ python keypoint_clone_detection.py --help
 ```
+
+You can build packages using:
+
+```bash
+$ pip install build
+$ python -m build
+```
+The built packages are then available in the `dist/` directory.

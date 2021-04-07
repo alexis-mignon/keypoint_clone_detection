@@ -10,6 +10,7 @@ from skimage import draw
 from skimage import io
 from skimage import util
 
+__version__ = "0.0.1"
 
 def self_match(descriptors, metric="hamming"):
     """Match descriptors to themselves
