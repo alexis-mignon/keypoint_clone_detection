@@ -29,12 +29,14 @@ def check_image(img):
     return img
 
 
-def equalize(img, radius=None):
+def equalize(img, radius=None, denoise=False):
     if radius is None:
         min_size = min(img.shape[0], img.shape[1])
         radius = int(np.sqrt(min_size))
 
     img_gr = cv2.cvtColor(img, cv2.COLOR_RGBA2GRAY)
+    if denoise:
+        img_gr = cv2.fastNlMeansDenoising(img_gr)
     clahe = cv2.createCLAHE(tileGridSize=(radius, radius))
     return clahe.apply(img_gr)
 
@@ -57,6 +59,9 @@ def extract_sift_descr(img, n_keypoints):
     descr: list of
         Object holding the keypoints and descriptors
     """
+    if img.ndim == 3:
+        img = img[..., :3]  # Remove alpha
+        img = cv2.cvtColor(img, cv2.COLOR_RGBA2GRAY)
     sift = cv2.SIFT_create(nfeatures=n_keypoints)
     return sift.detectAndCompute(img, mask=None)
 
@@ -73,7 +78,7 @@ def drop_duplicate_matches(matches):
     return dedup_matches
 
 
-def find_matches(descriptors, filter_matches=False):
+def find_matches(descriptors, filter_matches=True):
     """Match descriptors to themselves
 
     Parameters
@@ -173,7 +178,7 @@ def draw_matches(img,
         The name of the color (from the `skimage.color.color_dict` dictionary).
     damp_factor: float
         The damp factor used in the gaussian weight profile.
-    threshold: float, optional (default=1)
+    threshold: float or tuple[float, float], optional (default=1)
         The threshold on descriptor distance above which the matches are displayed expressed
         in quantile. By default all matches are displayed.
 
@@ -196,9 +201,17 @@ def draw_matches(img,
 
     weights = compute_weights(matches.distances, damp_factor=damp_factor)
 
-    if threshold < 1.0:
-        thresh_dist = np.quantile(matches.distances, threshold)
-        mask = matches.distances < thresh_dist
+    try:
+        threshold_min, threshold_max = tuple(threshold)
+    except TypeError:
+        threshold_min = 0.0
+        threshold_max = float(threshold)
+
+    if threshold_min > 0.0 or threshold_max < 1.0:
+        thresh_dist_min, thresh_dist_max = np.quantile(
+            matches.distances, (threshold_min, threshold_max)
+        )
+        mask = (matches.distances >= thresh_dist_min) & (matches.distances <= thresh_dist_max)
         train_indexes = matches.train_indexes[mask]
         query_indexes = matches.query_indexes[mask]
         weights = weights[mask]

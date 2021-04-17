@@ -22,8 +22,8 @@ def load_image(uploaded_image, image_dir=None):
 
 
 @st.cache(allow_output_mutation=True)
-def equalize(img):
-    return kcd.equalize(img)
+def equalize(img, radius, denoise):
+    return kcd.equalize(img, radius, denoise)
 
 
 @st.cache(allow_output_mutation=True)
@@ -58,25 +58,39 @@ uploaded_image = st.file_uploader("Choose an image file")
 
 if uploaded_image is not None:
     img = load_image(uploaded_image, args.save_image_dir)
-    img_eq = equalize(img)
 
-    n_keypoints = st.number_input("Number of keypoints:", value=2000)
+    radius = st.sidebar.number_input(label="Radius of the local contrast area (in pixels)",
+                                     value=50)
+    denoise = st.sidebar.checkbox(label="Denoise", value=True,
+                                  help=("Apply a denoising filter before detecting key points."
+                                        "Can degrade the results if the duplicated signal is in "
+                                        "the high frequencies"))
 
-    keypoints, matches = compute_matches(img_eq, n_keypoints=n_keypoints)
+    img_eq = equalize(img, radius, denoise)
+
+    use_equal = st.sidebar.checkbox(label="Use equalized image ", value=True,
+                            help="Use the image with enhanced local contrast to detect key points")
+    n_keypoints = st.sidebar.number_input("Number of keypoints:", value=5000)
+
+    keypoints, matches = compute_matches(img_eq if use_equal else img, n_keypoints=n_keypoints)
 
     st.markdown(f"Number of detected keypoints: {keypoints.n_keypoints}")
     st.markdown(f"Number of found matches: {matches.n_matches}")
 
-    show_matches = st.checkbox(label="show matches", value=True,
+    show_matches = st.sidebar.checkbox(label="show matches", value=True,
                                help="Draw a line between matching keypoints")
 
-    show_equal = st.checkbox(label="show equalized image ", value=False,
+
+    show_equal = st.sidebar.checkbox(label="show equalized image ", value=False,
                              help="Show the image with enhanced local contrast")
 
-    threshold = st.slider(label="Descriptor distance threshold (in quantile): ",
-                          min_value=0.0, max_value=1.0, value=1.0, step=0.01)
+    threshold_max = st.sidebar.slider(label="Descriptor max distance threshold (in quantile): ",
+                              min_value=0.0, max_value=1.0, value=1.0, step=0.01)
 
-    damp = st.number_input("Opacity damping factor:", value=5.0, step=0.1,
+    threshold_min = st.sidebar.slider(label="Descriptor min distance threshold",
+                              min_value=0.0, max_value=1.0, value=0.0, step=0.01)
+
+    damp = st.sidebar.number_input("Opacity damping factor:", value=1.0, step=0.1,
                            help=(
                                "Set the opacity as a decreasing function of the "
                                "descriptor distance. A damp factor 0.0 means that "
@@ -89,7 +103,7 @@ if uploaded_image is not None:
         img_,
         keypoints,
         matches,
-        threshold=threshold,
+        threshold=(threshold_min, threshold_max),
         damp_factor=damp
     )
 
